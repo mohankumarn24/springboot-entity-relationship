@@ -3,13 +3,60 @@ package net.projectsync.entityrelationship.mapper;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import net.projectsync.entityrelationship.dto.*;
+import net.projectsync.entityrelationship.dto.AddressDTO;
+import net.projectsync.entityrelationship.dto.PhoneDTO;
+import net.projectsync.entityrelationship.dto.ProjectDTO;
+import net.projectsync.entityrelationship.dto.StudentCreateDTO;
+import net.projectsync.entityrelationship.dto.StudentDTO;
+import net.projectsync.entityrelationship.dto.StudentUpdateDTO;
 import net.projectsync.entityrelationship.model.*;
 
 public class StudentMapper {
 
     private StudentMapper() {}
 
+    // =========================================
+    // CREATE DTO → NEW ENTITY
+    // =========================================
+    public static Student toNewEntity(StudentCreateDTO dto) {
+
+        Student s = new Student();
+        s.setFirstName(dto.getFirstName());
+        s.setLastName(dto.getLastName());
+        s.setEmail(dto.getEmail());
+
+        if (dto.getAddress() != null)
+            s.setAddress(toNewAddress(dto.getAddress()));
+
+        if (dto.getPhones() != null) {
+            List<Phone> phones = dto.getPhones().stream()
+                    .map(StudentMapper::toNewPhone)
+                    .collect(Collectors.toList());
+            phones.forEach(p -> p.setStudent(s));
+            s.getPhones().addAll(phones);
+        }
+
+        // projects are handled in service (because of shared entities & version)
+        return s;
+    }
+
+    private static Address toNewAddress(AddressDTO dto) {
+        Address a = new Address();
+        a.setHouseName(dto.getHouseName());
+        a.setStreetNo(dto.getStreetNo());
+        a.setCity(dto.getCity());
+        a.setState(dto.getState());
+        a.setCountry(dto.getCountry());
+        return a;
+    }
+
+    private static Phone toNewPhone(PhoneDTO dto) {
+        Phone p = new Phone();
+        p.setPhoneModel(dto.getPhoneModel());
+        p.setPhoneNumber(dto.getPhoneNumber());
+        return p;
+    }
+    
     // =========================================
     // ENTITY → DTO
     // =========================================
@@ -71,48 +118,6 @@ public class StudentMapper {
         dto.setVersion(p.getVersion());
         dto.setProjectName(p.getProjectName());
         return dto;
-    }
-
-    // =========================================
-    // CREATE DTO → NEW ENTITY
-    // =========================================
-    public static Student toNewEntity(StudentCreateDTO dto) {
-
-        Student s = new Student();
-        s.setFirstName(dto.getFirstName());
-        s.setLastName(dto.getLastName());
-        s.setEmail(dto.getEmail());
-
-        if (dto.getAddress() != null)
-            s.setAddress(toNewAddress(dto.getAddress()));
-
-        if (dto.getPhones() != null) {
-            List<Phone> phones = dto.getPhones().stream()
-                    .map(StudentMapper::toNewPhone)
-                    .collect(Collectors.toList());
-            phones.forEach(p -> p.setStudent(s));
-            s.getPhones().addAll(phones);
-        }
-
-        // projects are handled in service (because of shared entities & version)
-        return s;
-    }
-
-    private static Address toNewAddress(AddressDTO dto) {
-        Address a = new Address();
-        a.setHouseName(dto.getHouseName());
-        a.setStreetNo(dto.getStreetNo());
-        a.setCity(dto.getCity());
-        a.setState(dto.getState());
-        a.setCountry(dto.getCountry());
-        return a;
-    }
-
-    private static Phone toNewPhone(PhoneDTO dto) {
-        Phone p = new Phone();
-        p.setPhoneModel(dto.getPhoneModel());
-        p.setPhoneNumber(dto.getPhoneNumber());
-        return p;
     }
 
     // =========================================

@@ -1,22 +1,32 @@
 package net.projectsync.entityrelationship.service;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import javax.persistence.EntityNotFoundException;
 import javax.persistence.OptimisticLockException;
 import javax.transaction.Transactional;
-
 import org.springframework.stereotype.Service;
-
 import lombok.RequiredArgsConstructor;
-import net.projectsync.entityrelationship.dto.*;
+import net.projectsync.entityrelationship.dto.AddressDTO;
+import net.projectsync.entityrelationship.dto.PhoneDTO;
+import net.projectsync.entityrelationship.dto.ProjectDTO;
+import net.projectsync.entityrelationship.dto.StudentCreateDTO;
+import net.projectsync.entityrelationship.dto.StudentDTO;
+import net.projectsync.entityrelationship.dto.StudentUpdateDTO;
 import net.projectsync.entityrelationship.mapper.StudentMapper;
-import net.projectsync.entityrelationship.model.*;
+import net.projectsync.entityrelationship.model.Address;
+import net.projectsync.entityrelationship.model.Phone;
+import net.projectsync.entityrelationship.model.Project;
+import net.projectsync.entityrelationship.model.Student;
 import net.projectsync.entityrelationship.repository.ProjectRepository;
 import net.projectsync.entityrelationship.repository.StudentRepository;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional 						// Added to enable default Lazy loading as specified in entities
 public class StudentService {
 
     private final StudentRepository studentRepository;
@@ -25,7 +35,6 @@ public class StudentService {
     // =====================================================
     // CREATE
     // =====================================================
-
     public StudentDTO createStudent(StudentCreateDTO dto) {
 
         Student s = StudentMapper.toNewEntity(dto);
@@ -43,20 +52,32 @@ public class StudentService {
     }
 
     // =====================================================
-    // PUT (FULL REPLACE)
+    // READ
     // =====================================================
+    public StudentDTO getById(Long id) {
+        return StudentMapper.toDTO(findStudent(id));
+    }
 
+    public List<StudentDTO> getAll() {
+        return studentRepository.findAll().stream()
+                .map(StudentMapper::toDTO)
+                .toList();
+    }
+    
+    // =====================================================
+    // PUT
+    // =====================================================
     public StudentDTO update(Long id, StudentUpdateDTO dto) {
 
         Student s = findStudent(id);
 
-        // 1) optimistic lock at root
+        // optimistic lock at root
         if (dto.getVersion() == null) {
             throw new OptimisticLockException("Student version is required for PUT");
         }
         checkVersion("Student", s.getId(), s.getVersion(), dto.getVersion());
 
-        // 2) full required fields
+        // full required fields
         if (dto.getFirstName() == null ||
             dto.getLastName() == null ||
             dto.getEmail() == null) {
@@ -75,9 +96,8 @@ public class StudentService {
     }
 
     // =====================================================
-    // PATCH (PARTIAL)
+    // PATCH
     // =====================================================
-
     public StudentDTO patch(Long id, StudentUpdateDTO dto) {
 
         Student s = findStudent(id);
@@ -102,23 +122,8 @@ public class StudentService {
     }
 
     // =====================================================
-    // READ
-    // =====================================================
-
-    public StudentDTO getById(Long id) {
-        return StudentMapper.toDTO(findStudent(id));
-    }
-
-    public List<StudentDTO> getAll() {
-        return studentRepository.findAll().stream()
-                .map(StudentMapper::toDTO)
-                .toList();
-    }
-
-    // =====================================================
     // DELETE
     // =====================================================
-
     public void delete(Long id) {
         studentRepository.delete(findStudent(id));
     }
@@ -126,7 +131,6 @@ public class StudentService {
     // =====================================================
     // FULL FETCH / JOIN CASES (unchanged)
     // =====================================================
-
     public StudentDTO getFull(Long id) {
 
         studentRepository.findBase(id)
@@ -163,10 +167,7 @@ public class StudentService {
     // OPTIMISTIC LOCK HELPERS
     // =====================================================
 
-    private void checkVersion(String type,
-                              Long entityId,
-                              Long currentVersion,
-                              Long incomingVersion) {
+    private void checkVersion(String type, Long entityId, Long currentVersion, Long incomingVersion) {
 
         if (!Objects.equals(currentVersion, incomingVersion)) {
             throw new OptimisticLockException(
@@ -238,7 +239,7 @@ public class StudentService {
     // PHONES (PUT / PATCH)
     // =====================================================
 
-    // PUT: replace full list
+    // PUT
     private void applyPutOnPhones(Student s, List<PhoneDTO> dtos) {
 
         if (dtos == null) return;
