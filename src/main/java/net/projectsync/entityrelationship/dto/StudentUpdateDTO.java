@@ -7,8 +7,11 @@ import lombok.Setter;
 @Getter
 @Setter
 public class StudentUpdateDTO {
+	
     // path variable carries the id
-    private Long version;            // required for PUT, optional for PATCH
+	
+	// required for PUT, optional for PATCH
+    private Long version;            
     private String firstName;
     private String lastName;
     private String email;

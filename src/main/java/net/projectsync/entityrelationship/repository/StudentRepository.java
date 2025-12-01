@@ -14,6 +14,12 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
 	// inner join -> return student ONLY if there is no address
 	// left join  -> return student even if there is no address
 	
+	// LEFT JOIN & LEFT OUTER JOIN are same in PostgreSQL
+	
+	// TODO:
+	// LEFT JOIN 
+	// LEFT JOIN FETCH
+	
 	@Query("SELECT s FROM Student s LEFT JOIN FETCH s.address WHERE s.id = :id")
 	Optional<Student> findBase(@Param("id") Long id);
 

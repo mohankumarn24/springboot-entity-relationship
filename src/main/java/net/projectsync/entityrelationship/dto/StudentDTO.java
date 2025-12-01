@@ -4,7 +4,6 @@ import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 
-// Response DTO
 @Getter
 @Setter
 public class StudentDTO {
