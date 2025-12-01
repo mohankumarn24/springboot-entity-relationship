@@ -40,6 +40,7 @@ public class StudentService {
         Student s = StudentMapper.toNewEntity(dto);
 
         // Projects: may reuse existing or create new
+        // ManyToMany
         if (dto.getProjects() != null) {
             s.setProjects(
                     dto.getProjects().stream()
@@ -47,15 +48,37 @@ public class StudentService {
                             .toList()
             );
         }
+        /* same as above 'if' block
+	    List<Project> projects = new ArrayList<>();
+	    for (ProjectDTO projectDTO : dto.getProjects()) {
+	        Project project = resolveProjectForCreate(projectDTO);
+	        projects.add(project);
+	    }
+        */
 
         return StudentMapper.toDTO(studentRepository.save(s));
     }
 
+    // For create: project version is ignored
+    private Project resolveProjectForCreate(ProjectDTO dto) {
+        if (dto.getId() != null) {
+            return projectRepository.findById(dto.getId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Project not found: " + dto.getId()
+                    ));
+        }
+        Project p = new Project();
+        p.setProjectName(dto.getProjectName());
+        return p;
+    }
+    
     // =====================================================
     // READ
     // =====================================================
     public StudentDTO getById(Long id) {
-        return StudentMapper.toDTO(findStudent(id));
+        Student s = studentRepository.findById(id)
+        		.orElseThrow(() -> new EntityNotFoundException("Student not found: " + id));
+        return StudentMapper.toDTO(s);
     }
 
     public List<StudentDTO> getAll() {
@@ -68,8 +91,9 @@ public class StudentService {
     // PUT
     // =====================================================
     public StudentDTO update(Long id, StudentUpdateDTO dto) {
-
-        Student s = findStudent(id);
+    	
+        Student s = studentRepository.findById(id)
+        		.orElseThrow(() -> new EntityNotFoundException("Student not found: " + id));
 
         // optimistic lock at root
         if (dto.getVersion() == null) {
@@ -78,6 +102,7 @@ public class StudentService {
         checkVersion("Student", s.getId(), s.getVersion(), dto.getVersion());
 
         // full required fields
+        // Optional: update only non-null field
         if (dto.getFirstName() == null ||
             dto.getLastName() == null ||
             dto.getEmail() == null) {
@@ -85,103 +110,25 @@ public class StudentService {
         }
 
         // basic fields
-        StudentMapper.applyPutOnStudentBasic(s, dto);
+        applyPutOnStudentBasic(s, dto);
 
         // nested
         applyPutOnAddress(s, dto.getAddress());
         applyPutOnPhones(s, dto.getPhones());
         applyPutOnProjects(s, dto.getProjects());
-
-        return StudentMapper.toDTO(s);
+        
+        // update() is wrapped in a transaction (@Transactional added at service level or method level)
+        // So, Hibernate tracks these changes using dirty checking. Hibernate automatically runs UPDATE, INSERT, DELETE. No need to explicitly specify save()
+        // return StudentMapper.toDTO(s);						// automatic persistence / dirty checking
+        return StudentMapper.toDTO(studentRepository.save(s));	// added explicit save to avoid accidental failures
     }
-
-    // =====================================================
-    // PATCH
-    // =====================================================
-    public StudentDTO patch(Long id, StudentUpdateDTO dto) {
-
-        Student s = findStudent(id);
-
-        // optional optimistic locking for root
-        if (dto.getVersion() != null) {
-            checkVersion("Student", s.getId(), s.getVersion(), dto.getVersion());
-        }
-
-        StudentMapper.applyPatchOnStudentBasic(s, dto);
-
-        if (dto.getAddress() != null)
-            applyPatchOnAddress(s, dto.getAddress());
-
-        if (dto.getPhones() != null)
-            applyPatchOnPhones(s, dto.getPhones());
-
-        if (dto.getProjects() != null)
-            applyPatchOnProjects(s, dto.getProjects());
-
-        return StudentMapper.toDTO(s);
+    
+    private void applyPutOnStudentBasic(Student s, StudentUpdateDTO dto) {
+        s.setFirstName(dto.getFirstName());
+        s.setLastName(dto.getLastName());
+        s.setEmail(dto.getEmail());
     }
-
-    // =====================================================
-    // DELETE
-    // =====================================================
-    public void delete(Long id) {
-        studentRepository.delete(findStudent(id));
-    }
-
-    // =====================================================
-    // FULL FETCH / JOIN CASES (unchanged)
-    // =====================================================
-    public StudentDTO getFull(Long id) {
-
-        studentRepository.findBase(id)
-                .orElseThrow(() -> new EntityNotFoundException("Student not found"));
-
-        studentRepository.fetchPhones(id);
-        studentRepository.fetchProjects(id);
-
-        return StudentMapper.toDTO(findStudent(id));
-    }
-
-    public List<StudentDTO> getByProject(String name) {
-        return studentRepository.findByProjectName(name)
-                .stream().map(StudentMapper::toDTO).toList();
-    }
-
-    public List<StudentDTO> withPhones() {
-        return studentRepository.withPhones()
-                .stream().map(StudentMapper::toDTO).toList();
-    }
-
-    public List<StudentDTO> withoutPhones() {
-        return studentRepository.withoutPhones()
-                .stream().map(StudentMapper::toDTO).toList();
-    }
-
-    public List<ProjectDTO> getProjects(Long id) {
-        findStudent(id); // validate
-        return projectRepository.findByStudent(id)
-                .stream().map(StudentMapper::toProjectDTO).toList();
-    }
-
-    // =====================================================
-    // OPTIMISTIC LOCK HELPERS
-    // =====================================================
-
-    private void checkVersion(String type, Long entityId, Long currentVersion, Long incomingVersion) {
-
-        if (!Objects.equals(currentVersion, incomingVersion)) {
-            throw new OptimisticLockException(
-                    type + " " + entityId +
-                    " has version " + currentVersion +
-                    " but request used " + incomingVersion
-            );
-        }
-    }
-
-    // =====================================================
-    // ADDRESS (PUT / PATCH)
-    // =====================================================
-
+    
     private void applyPutOnAddress(Student s, AddressDTO dto) {
 
         if (dto == null) {
@@ -215,31 +162,7 @@ public class StudentService {
         s.getAddress().setState(dto.getState());
         s.getAddress().setCountry(dto.getCountry());
     }
-
-    private void applyPatchOnAddress(Student s, AddressDTO dto) {
-
-        Address a = s.getAddress();
-
-        if (a == null) {
-            // if any field present, create new address
-            a = new Address();
-            s.setAddress(a);
-        } else if (dto.getVersion() != null) {
-            checkVersion("Address", a.getId(), a.getVersion(), dto.getVersion());
-        }
-
-        if (dto.getHouseName() != null) a.setHouseName(dto.getHouseName());
-        if (dto.getStreetNo() != null)  a.setStreetNo(dto.getStreetNo());
-        if (dto.getCity() != null)      a.setCity(dto.getCity());
-        if (dto.getState() != null)     a.setState(dto.getState());
-        if (dto.getCountry() != null)   a.setCountry(dto.getCountry());
-    }
-
-    // =====================================================
-    // PHONES (PUT / PATCH)
-    // =====================================================
-
-    // PUT
+    
     private void applyPutOnPhones(Student s, List<PhoneDTO> dtos) {
 
         if (dtos == null) return;
@@ -269,7 +192,89 @@ public class StudentService {
             }
         }
     }
+    
+    private void applyPutOnProjects(Student s, List<ProjectDTO> dtos) {
 
+        s.getProjects().clear();
+
+        if (dtos == null) return;
+
+        List<Project> newProjects = new ArrayList<>();
+        for (ProjectDTO dto : dtos) {
+        	// update existing project
+            if (dto.getId() != null) {
+                Project p = projectRepository.findById(dto.getId())
+                        .orElseThrow(() -> new EntityNotFoundException("Project not found: " + dto.getId()));
+
+                if (dto.getVersion() != null) {
+                    checkVersion("Project", p.getId(), p.getVersion(), dto.getVersion());
+                }
+
+                p.setProjectName(dto.getProjectName()); // shared entity will be updated
+                newProjects.add(p);
+            } 
+            // project does not exist -> create new project
+            else {
+                Project p = new Project();
+                p.setProjectName(dto.getProjectName());
+                newProjects.add(p);
+            }
+        }
+
+        s.getProjects().addAll(newProjects);
+    }
+
+    // =====================================================
+    // PATCH
+    // =====================================================
+    public StudentDTO patch(Long id, StudentUpdateDTO dto) {
+
+        Student s = studentRepository.findById(id)
+        		.orElseThrow(() -> new EntityNotFoundException("Student not found: " + id));
+
+        // optional optimistic locking for root
+        if (dto.getVersion() != null) {
+            checkVersion("Student", s.getId(), s.getVersion(), dto.getVersion());
+        }
+
+        applyPatchOnStudentBasic(s, dto);
+
+        if (dto.getAddress() != null)
+            applyPatchOnAddress(s, dto.getAddress());
+
+        if (dto.getPhones() != null)
+            applyPatchOnPhones(s, dto.getPhones());
+
+        if (dto.getProjects() != null)
+            applyPatchOnProjects(s, dto.getProjects());
+
+        // return StudentMapper.toDTO(s);						// automatic persistence / dirty checking
+        return StudentMapper.toDTO(studentRepository.save(s));	// added explicit save to avoid accidental failures
+    }
+
+    private void applyPatchOnStudentBasic(Student s, StudentUpdateDTO dto) {
+        if (dto.getFirstName() != null) s.setFirstName(dto.getFirstName());
+        if (dto.getLastName() != null)  s.setLastName(dto.getLastName());
+        if (dto.getEmail() != null)     s.setEmail(dto.getEmail());
+    }
+    
+    private void applyPatchOnAddress(Student s, AddressDTO dto) {
+
+        Address a = s.getAddress();
+        if (a == null) {
+            // if any field present, create new address
+            a = new Address();
+            s.setAddress(a);
+        } else if (dto.getVersion() != null) {
+            checkVersion("Address", a.getId(), a.getVersion(), dto.getVersion());
+        }
+
+        if (dto.getHouseName() != null) a.setHouseName(dto.getHouseName());
+        if (dto.getStreetNo() != null)  a.setStreetNo(dto.getStreetNo());
+        if (dto.getCity() != null)      a.setCity(dto.getCity());
+        if (dto.getState() != null)     a.setState(dto.getState());
+        if (dto.getCountry() != null)   a.setCountry(dto.getCountry());
+    }
 
     // PATCH: update existing, add new, keep unspecified
     private void applyPatchOnPhones(Student s, List<PhoneDTO> dtos) {
@@ -283,7 +288,6 @@ public class StudentService {
         }
 
         for (PhoneDTO dto : dtos) {
-
             if (dto.getId() != null) {
                 Phone existing = existingById.get(dto.getId());
                 if (existing == null) {
@@ -312,56 +316,7 @@ public class StudentService {
         // Note: we do NOT remove unspecified phones in PATCH
     }
 
-    // =====================================================
-    // PROJECTS (PUT / PATCH)
-    // =====================================================
-
-    // For create: project version is ignored
-    private Project resolveProjectForCreate(ProjectDTO dto) {
-        if (dto.getId() != null) {
-            return projectRepository.findById(dto.getId())
-                    .orElseThrow(() -> new EntityNotFoundException(
-                            "Project not found: " + dto.getId()
-                    ));
-        }
-        Project p = new Project();
-        p.setProjectName(dto.getProjectName());
-        return p;
-    }
-
-    // PUT: full replace
-    private void applyPutOnProjects(Student s, List<ProjectDTO> dtos) {
-
-        s.getProjects().clear();
-
-        if (dtos == null) return;
-
-        List<Project> newProjects = new ArrayList<>();
-
-        for (ProjectDTO dto : dtos) {
-
-            if (dto.getId() != null) {
-                Project p = projectRepository.findById(dto.getId())
-                        .orElseThrow(() -> new EntityNotFoundException("Project not found: " + dto.getId()));
-
-                if (dto.getVersion() != null) {
-                    checkVersion("Project", p.getId(), p.getVersion(), dto.getVersion());
-                }
-
-                p.setProjectName(dto.getProjectName()); // shared entity will be updated
-                newProjects.add(p);
-
-            } else {
-                Project p = new Project();
-                p.setProjectName(dto.getProjectName());
-                newProjects.add(p);
-            }
-        }
-
-        s.getProjects().addAll(newProjects);
-    }
-
-    // PATCH: update ones provided, keep others; if a project is absent → keep it
+    // PATCH: update ones provided, keep others; if a project is absent, keep it
     private void applyPatchOnProjects(Student s, List<ProjectDTO> dtos) {
 
         // Existing set as map by id
@@ -371,7 +326,6 @@ public class StudentService {
         }
 
         for (ProjectDTO dto : dtos) {
-
             if (dto.getId() != null) {
                 Project p = projectRepository.findById(dto.getId())
                         .orElseThrow(() -> new EntityNotFoundException("Project not found: " + dto.getId()));
@@ -394,13 +348,64 @@ public class StudentService {
             }
         }
     }
+    
+    // =====================================================
+    // DELETE
+    // =====================================================
+    public void delete(Long id) {
+        Student s = studentRepository.findById(id)
+        		.orElseThrow(() -> new EntityNotFoundException("Student not found: " + id));
+        studentRepository.delete(s);
+    }
 
     // =====================================================
-    // HELPER
+    // FULL FETCH / JOIN CASES (unchanged)
     // =====================================================
+    public StudentDTO getFull(Long id) {
 
-    private Student findStudent(Long id) {
-        return studentRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Student not found: " + id));
+        studentRepository.findBase(id)
+                .orElseThrow(() -> new EntityNotFoundException("Student not found"));
+
+        studentRepository.fetchPhones(id);
+        studentRepository.fetchProjects(id);
+
+        Student s = studentRepository.findById(id)
+        		.orElseThrow(() -> new EntityNotFoundException("Student not found: " + id));
+        
+        return StudentMapper.toDTO(s);
+    }
+
+    public List<StudentDTO> getByProject(String name) {
+        return studentRepository.findByProjectName(name)
+                .stream().map(StudentMapper::toDTO).toList();
+    }
+
+    public List<StudentDTO> withPhones() {
+        return studentRepository.withPhones()
+                .stream().map(StudentMapper::toDTO).toList();
+    }
+
+    public List<StudentDTO> withoutPhones() {
+        return studentRepository.withoutPhones()
+                .stream().map(StudentMapper::toDTO).toList();
+    }
+
+    public List<ProjectDTO> getProjects(Long id) {
+        Student s = studentRepository.findById(id)
+        		.orElseThrow(() -> new EntityNotFoundException("Student not found: " + id));
+        
+        return projectRepository.findByStudent(id)
+                .stream().map(StudentMapper::toProjectDTO).toList();
+    }
+
+    // =====================================================
+    // OPTIMISTIC LOCK HELPER
+    // =====================================================
+    private void checkVersion(String type, Long entityId, Long currentVersion, Long incomingVersion) {
+
+        if (!Objects.equals(currentVersion, incomingVersion)) {
+        	String msg = String.format("%s %s has version %s but request used %s", type, entityId, currentVersion, incomingVersion);
+            throw new OptimisticLockException(msg);
+        }
     }
 }

@@ -2,14 +2,15 @@ package net.projectsync.entityrelationship.mapper;
 
 import java.util.List;
 import java.util.stream.Collectors;
-
 import net.projectsync.entityrelationship.dto.AddressDTO;
 import net.projectsync.entityrelationship.dto.PhoneDTO;
 import net.projectsync.entityrelationship.dto.ProjectDTO;
 import net.projectsync.entityrelationship.dto.StudentCreateDTO;
 import net.projectsync.entityrelationship.dto.StudentDTO;
-import net.projectsync.entityrelationship.dto.StudentUpdateDTO;
-import net.projectsync.entityrelationship.model.*;
+import net.projectsync.entityrelationship.model.Address;
+import net.projectsync.entityrelationship.model.Phone;
+import net.projectsync.entityrelationship.model.Project;
+import net.projectsync.entityrelationship.model.Student;
 
 public class StudentMapper {
 
@@ -25,14 +26,18 @@ public class StudentMapper {
         s.setLastName(dto.getLastName());
         s.setEmail(dto.getEmail());
 
-        if (dto.getAddress() != null)
-            s.setAddress(toNewAddress(dto.getAddress()));
+        // OneToOne
+        if (dto.getAddress() != null) {
+        	s.setAddress(toNewAddress(dto.getAddress()));
+        }
 
+        // OneToMany
         if (dto.getPhones() != null) {
             List<Phone> phones = dto.getPhones().stream()
                     .map(StudentMapper::toNewPhone)
                     .collect(Collectors.toList());
-            phones.forEach(p -> p.setStudent(s));
+            phones.forEach(p -> p.setStudent(s));		// To avoid setting FK=null in 'phones' table and hence avoid creating orphan records
+            											// Since, FK cannot be null, it throws constraint violation
             s.getPhones().addAll(phones);
         }
 
@@ -62,7 +67,9 @@ public class StudentMapper {
     // =========================================
     public static StudentDTO toDTO(Student s) {
 
-        if (s == null) return null;
+        if (s == null) {
+        	return null;
+        }
 
         StudentDTO dto = new StudentDTO();
         dto.setId(s.getId());
@@ -71,22 +78,44 @@ public class StudentMapper {
         dto.setLastName(s.getLastName());
         dto.setEmail(s.getEmail());
 
+        // OneToOne
         if (s.getAddress() != null)
             dto.setAddress(toDTO(s.getAddress()));
 
-        if (s.getPhones() != null)
+        // OneToMany
+        if (s.getPhones() != null) {
             dto.setPhones(
                     s.getPhones().stream()
                             .map(StudentMapper::toDTO)
                             .collect(Collectors.toList())
             );
+            
+            /* same as above 'if' block
+			List<PhoneDTO> phoneDTOList = new ArrayList<>();
+			for (Phone phone : s.getPhones()) {
+			    PhoneDTO phoneDTO = StudentMapper.toDTO(phone);
+			    phoneDTOList.add(phoneDTO);
+			}
+            */
+        }
 
-        if (s.getProjects() != null)
+        // ManyToMany
+        if (s.getProjects() != null) {
             dto.setProjects(
                     s.getProjects().stream()
                             .map(StudentMapper::toProjectDTO)
                             .collect(Collectors.toList())
             );
+            
+            /* same as above 'if' block
+		    List<ProjectDTO> projectDTOList = new ArrayList<>();
+		
+		    for (Project project : s.getProjects()) {
+		        ProjectDTO projectDTO = StudentMapper.toProjectDTO(project);
+		        projectDTOList.add(projectDTO);
+		    }
+            */
+        }
 
         return dto;
     }
@@ -118,20 +147,5 @@ public class StudentMapper {
         dto.setVersion(p.getVersion());
         dto.setProjectName(p.getProjectName());
         return dto;
-    }
-
-    // =========================================
-    // BASIC FIELD UPDATES (Student only)
-    // =========================================
-    public static void applyPutOnStudentBasic(Student s, StudentUpdateDTO dto) {
-        s.setFirstName(dto.getFirstName());
-        s.setLastName(dto.getLastName());
-        s.setEmail(dto.getEmail());
-    }
-
-    public static void applyPatchOnStudentBasic(Student s, StudentUpdateDTO dto) {
-        if (dto.getFirstName() != null) s.setFirstName(dto.getFirstName());
-        if (dto.getLastName() != null)  s.setLastName(dto.getLastName());
-        if (dto.getEmail() != null)     s.setEmail(dto.getEmail());
     }
 }

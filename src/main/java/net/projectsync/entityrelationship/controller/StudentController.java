@@ -57,6 +57,13 @@ public class StudentController {
 		return studentService.update(id, dto);
 	}
 
+	// ---------- PATCH ----------
+	@Operation(summary = "Partial update student")
+	@PatchMapping("/{id}")
+	public StudentDTO patch(@PathVariable Long id, @RequestBody StudentUpdateDTO dto) {
+	    return studentService.patch(id, dto);
+	}
+	
 	// ---------- DELETE ----------
 	@Operation(summary = "Delete student by ID")
 	@DeleteMapping("/{id}")
@@ -64,13 +71,6 @@ public class StudentController {
 		studentService.delete(id);
 	}
 	
-	// ---------- PATCH ----------
-	@Operation(summary = "Partial update student")
-	@PatchMapping("/{id}")
-	public StudentDTO patch(@PathVariable Long id, @RequestBody StudentUpdateDTO dto) {
-	    return studentService.patch(id, dto);
-	}
-
 	// ---------- JOIN CASES ----------
 	// EAGER Loading -> Has inner joins
 	@Operation(summary = "Get student with Address, Phones, Projects")
