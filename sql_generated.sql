@@ -1,3 +1,425 @@
+---------------------------------------------------------------------------------------------
+------------------  Plain PostgreSQL SQL examples for each relationship type ----------------
+---------------------------------------------------------------------------------------------
+
+Golden rule:
+SQL does not have “relationship types”.
+Only foreign keys + joins.
+
+1. ONE-TO-ONE
+   ----------
+	(Student → Address)
+	
+	a. Query: Student with Address
+		SELECT s.id, s.name, a.city
+		FROM student s
+		INNER JOIN address a ON s.address_id = a.id;
+		
+	b. Student even if Address missing
+		SELECT s.id, s.name, a.city
+		FROM student s
+		LEFT JOIN address a ON s.address_id = a.id;
+		
+2. ONE-TO-MANY
+   -----------
+	(Student → Phone)
+	
+	a. Query: Student with Phones
+		SELECT s.id, s.name, p.number
+		FROM student s
+		INNER JOIN phone p ON s.id = p.student_id;
+	
+	b. All Students (even without phones)
+		SELECT s.id, s.name, p.number
+		FROM student s
+		LEFT JOIN phone p ON s.id = p.student_id;
+
+3. MANY-TO-ONE
+   -----------
+	(Phone → Student)
+	
+	Same join — interpreted from the opposite side.
+	
+	a. Query: Phone with its Student
+		SELECT p.id, p.number, s.name
+		FROM phone p
+		INNER JOIN student s ON p.student_id = s.id;
+	
+	b. Phones even if Student missing
+		SELECT p.id, p.number, s.name
+		FROM phone p
+		LEFT JOIN student s ON p.student_id = s.id;
+
+4. MANY-TO-MANY
+   ------------
+	(Student ↔ Project via join table)
+
+	Join table:
+	students_projects.student_id
+	students_projects.project_id
+	
+	a. Query: Student with Projects
+		SELECT s.id, s.name, pr.project_name
+		FROM student s
+		INNER JOIN students_projects sp ON s.id = sp.student_id
+		INNER JOIN project pr ON sp.project_id = pr.id;
+	
+	b. All Students even without Projects
+		SELECT s.id, s.name, pr.project_name
+		FROM student s
+		LEFT JOIN students_projects sp ON s.id = sp.student_id
+		LEFT JOIN project pr ON sp.project_id = pr.id;
+	
+	c. Find Projects for one Student
+		SELECT pr.*
+		FROM project pr
+		INNER JOIN students_projects sp ON pr.id = sp.project_id
+		WHERE sp.student_id = 1;
+	
+Cheat Table:	
+| Relationship | SQL Join                          |
+| ------------ | --------------------------------- |
+| One-to-One   | 'student.address_id = address.id' |
+| One-to-Many  | 'student.id = phone.student_id'   |
+| Many-to-One  | 'phone.student_id = student.id'   |
+| Many-to-Many | 'student → join → project'        |
+
+
+---------------------------------------------------------------------------------------------
+------------------------------------- Inner Join, Left Join, Right Join ---------------------
+---------------------------------------------------------------------------------------------
+STUDENT:
+id | name
+---------
+1  | Arjun
+2  | Ravi
+
+PHONE:
+id | student_id | number
+------------------------
+10 | 1          | 9999
+11 | 1          | 8888
+12 | 3          | 7777
+
+ADDRESS:
+id | student_id | city
+----------------------
+100 | 1         | Chennai
+101 | 2         | Mumbai
+
+INNER JOIN (strict mode): 
+	What this means: 
+	 - Give me students who have BOTH phone AND address.
+	
+	SELECT *
+	FROM student s
+	INNER JOIN phone p ON s.id = p.student_id
+	INNER JOIN address a ON s.id = a.student_id;
+
+	| student | phone | address |
+	| ------- | ----- | ------- |
+	| Arjun   | ✅     | ✅       |
+
+	Because:
+	 - Ravi has address, NO phone → excluded
+	 - Student 3 has phone, NO student → excluded
+
+LEFT JOIN (forgiving mode):
+
+	What this means: 
+	 - Give all students, even if phone or address is missing.
+
+	SELECT *
+	FROM student s
+	LEFT JOIN phone p ON s.id = p.student_id
+	LEFT JOIN address a ON s.id = a.student_id;
+
+	| student | phone | address |
+	| ------- | ----- | ------- |
+	| Arjun   | ✅     | ✅       |
+	| Ravi    | NULL  | ✅       |
+
+	Student 3 not included (not in student table).
+
+
+RIGHT JOIN (reverse forgiving)
+
+	What this means:
+	 - Give all addresses, even if student or phone is missing.
+
+	SELECT *
+	FROM student s
+	RIGHT JOIN phone p ON s.id = p.student_id
+	RIGHT JOIN address a ON s.id = a.student_id;
+
+	| student | phone | address |
+	| ------- | ----- | ------- |
+	| Arjun   | ✅     | ✅       |
+	| Ravi    | NULL  | ✅       |
+
+TRUTH NUGGETS:
+-------------
+INNER - ONLY where all exist
+LEFT  - ALL students survive
+RIGHT - ALL of right table survive
+
+Why RIGHT JOIN is rare:
+RIGHT JOIN = LEFT JOIN but confusing.
+	We prefer:
+
+		FROM Phone
+		LEFT JOIN Student
+		
+	instead of RIGHT JOIN.
+	
+| JOIN  | Keeps              |
+| ----- | ------------------ |
+| INNER | Only matched rows  |
+| LEFT  | Left table always  |
+| RIGHT | Right table always |
+| FULL  | Both               |
+
+TRICK:
+Ask: "Who must survive even if no match?"
+That is your LEFT or RIGHT table.
+
+
+---------------------------------------------------------------------------------------------
+---------------------------- SQL Queries generated (Eager fetch) ----------------------------
+---------------------------------------------------------------------------------------------
+
+Actual Query generated when getById(1) for Eager fetch:
+
+select
+	student0_.id as id1_3_0_,
+	student0_.address_id as address_5_3_0_,
+	student0_.email as email2_3_0_,
+	student0_.first_name as first_na3_3_0_,
+	student0_.last_name as last_nam4_3_0_,
+	address1_.id as id1_0_1_,
+	address1_.city as city2_0_1_,
+	address1_.country as country3_0_1_,
+	address1_.house_name as house_na4_0_1_,
+	address1_.state as state5_0_1_,
+	address1_.street_no as street_n6_0_1_,
+	phones2_.student_id as student_4_1_2_,
+	phones2_.id as id1_1_2_,
+	phones2_.id as id1_1_3_,
+	phones2_.phone_model as phone_mo2_1_3_,
+	phones2_.phone_number as phone_nu3_1_3_,
+	phones2_.student_id as student_4_1_3_,
+	projects3_.student_id as student_1_4_4_,
+	project4_.id as project_2_4_4_,
+	project4_.id as id1_2_5_,
+	project4_.project_name as project_2_2_5_
+from temp.student student0_
+left outer join temp.address address1_ 				on student0_.address_id = address1_.id
+left outer join temp.phone phones2_  				on student0_.id = phones2_.student_id
+left outer join temp.students_projects projects3_  	on student0_.id = projects3_.student_id
+left outer join temp.project project4_ 				on projects3_.project_id = project4_.id
+where
+	student0_.id = 1;
+	
+==============================================================
+HIBERNATE JOIN QUERY VISUALIZATION (DOCUMENTATION)
+==============================================================
+
+PURPOSE:
+--------
+Fetch Student with id = 1,
+along with:
+ - their Address (OneToOne)
+ - all their Phones OneToMany)
+ - all their Projects ((ManyToMany via join table)
+   even if some of these don’t exist
+
+TABLES INVOLVED:
+----------------
+| Alias        | Table                    | Meaning     |
+| ------------ | ------------------------ | ----------- |
+| `student0_`  | `temp.student`           | Main entity |
+| `address1_`  | `temp.address`           | OneToOne    |
+| `phones2_`   | `temp.phone`             | OneToMany   |
+| `projects3_` | `temp.students_projects` | Join table  |
+| `project4_`  | `temp.project`           | ManyToMany  |
+
+
+
+LOGICAL RELATIONSHIP MODEL:
+---------------------------
+
+                    +------------+
+                    |  ADDRESS   |
+                    | (OneToOne) |
+                    +------------+
+                          |
+                          |
++----------+      +----------------+
+|  PHONE   |<-----|    STUDENT     |-----> STUDENTS_PROJECTS -----> PROJECT
+|(Many)    |      |    (Root)      |            (Join table)       (Many)
++----------+      +----------------+
+
+
+Query:
+-----
+
+select 
+	*
+from temp.student student0_
+left outer join temp.address address1_ 				on student0_.address_id = address1_.id
+left outer join temp.phone phones2_  				on student0_.id = phones2_.student_id
+left outer join temp.students_projects projects3_  	on student0_.id = projects3_.student_id
+left outer join temp.project project4_ 				on projects3_.project_id = project4_.id
+where
+	student0_.id = 1;
+	
+	
+Query breakdown line by line:
+-----------------------------
+1. Root entity
+	FROM temp.student student0_
+	
+	This is your main table. Think:
+	Start at STUDENT
+
+2. One-to-One join (Student → Address)
+	LEFT OUTER JOIN temp.address address1_
+	ON student0_.address_id = address1_.id
+	
+	Meaning:
+	“If student has an address → load it.
+	If not → keep student anyway.”
+	
+	Visual:
+	Student ---> Address
+
+3. One-to-Many join (Student → Phones)
+	LEFT OUTER JOIN temp.phone phones2_
+	ON student0_.id = phones2_.student_id
+
+	Meaning:
+	“Attach ALL phones that belong to this student.”
+
+	Visual:
+	Student ---> Phone1
+			---> Phone2
+			---> PhoneN
+
+
+4. Many-to-Many (Student → Join table)
+	LEFT OUTER JOIN temp.students_projects projects3_
+	ON student0_.id = projects3_.student_id
+	
+	Meaning:
+	“Find which projects belong to this student.”
+
+	Visual:
+	Student ---> students_projects
+
+
+5. Join real PROJECT table
+	LEFT OUTER JOIN temp.project project4_
+	ON projects3_.project_id = project4_.id
+	
+	Meaning:
+	“Load actual Project rows.”
+
+	Visual:
+	students_projects ---> Project1
+					  ---> Project2
+
+
+	Final mental picture:
+	For student.id = 1, Hibernate constructs:
+	Student (1)
+	│
+	├── Address (1)
+	│
+	├── Phones (many)
+	│     ├── Phone A
+	│     └── Phone B
+	│
+	└── Projects (many)
+		  ├── Project X
+		  └── Project Y
+
+
+OBJECT GRAPH BUILT BY HIBERNATE:
+--------------------------------
+
+Student (id = 1)
+│
+├── Address
+│
+├── Phones (0..N)
+│     ├── Phone1
+│     └── Phone2
+│
+└── Projects (0..N)
+      ├── ProjectA
+      └── ProjectB
+
+
+WHY SQL RETURNS MULTIPLE ROWS:
+-------------------------------
+When JOINing collections, SQL multiplies rows.
+
+Example:
+Phones = 2
+Projects = 2
+
+SQL RESULT = 2 × 2 = 4 ROWS
+
+Meaning:
+Each row is a combination, NOT duplicate students.
+
+Example rows:
+Phone1 + Project1
+Phone1 + Project2
+Phone2 + Project1
+Phone2 + Project2
+
+
+WHY API RETURNS ONLY ONE STUDENT:
+--------------------------------
+Hibernate:
+- Creates 1 Student object
+- Deduplicates by primary key
+- Builds collections internally:
+    phones[]
+    projects[]
+
+
+WHY LEFT OUTER JOIN IS USED:
+-----------------------------
+LEFT JOIN ensures:
+- Student returned even if Address is missing
+- Student returned even if Phones missing
+- Student returned even if Projects missing
+
+
+IMPORTANT PERFORMANCE NOTE:
+----------------------------
+This query causes CARTESIAN ROW EXPLOSION:
+
+Student × Phones × Projects
+
+This:
+- increases memory usage
+- slows queries
+- breaks pagination
+- makes COUNT(*) inaccurate
+
+Use:
+- LAZY fetching
+- DTO projections
+- SELECT DISTINCT
+- JOIN FETCH only when required
+
+---------------------------------------------------------------------------------------------
+----------------- ---------- SQL Queries generated (Lazy fetch) -----------------------------
+---------------------------------------------------------------------------------------------
+
 --------------------------------------------------------------------------------
 -- create tables
 --------------------------------------------------------------------------------
