@@ -150,10 +150,7 @@ public class StudentService {
 
         // existing address, optimistic lock if version present
         if (dto.getVersion() != null) {
-            checkVersion("Address",
-                    s.getAddress().getId(),
-                    s.getAddress().getVersion(),
-                    dto.getVersion());
+            checkVersion("Address", s.getAddress().getId(), s.getAddress().getVersion(), dto.getVersion());
         }
 
         s.getAddress().setHouseName(dto.getHouseName());
