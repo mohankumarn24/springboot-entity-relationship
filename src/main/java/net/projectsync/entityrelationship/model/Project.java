@@ -1,5 +1,6 @@
 package net.projectsync.entityrelationship.model;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.persistence.Entity;
@@ -23,10 +24,37 @@ public class Project {
 
 	private String projectName;
 
-	@JsonIgnore									// @JsonIgnore is added for JSON serialization safety
+	@JsonIgnore												// @JsonIgnore is added for JSON serialization safety
 	@ManyToMany(mappedBy = "projects")
-	private List<Student> students;
+	private List<Student> students = new ArrayList<>();
+	// private Set<Student> students = new HashSet<>();		// Use Set for ManyToMany (Because you use List, duplicates are possible)
 
 	@Version
 	private Long version;
 }
+
+/*
+ * MANY-TO-ONE / ONE-TO-MANY NOTES
+ *
+ * - Foreign Key (FK) is stored in the CHILD table (e.g. phones.student_id)
+ * - Child entity is the OWNING side of the relationship
+ *
+ * IMPORTANT:
+ * - We MUST set the parent on the child entity
+ *   e.g. phone.setStudent(student)
+ *
+ * WHY:
+ * - If FK is NOT NULL and we don't set it,
+ *   Hibernate will try to insert NULL -> constraint violation
+ *
+ * RULE:
+ * - Adding child to parent collection alone is NOT enough
+ * - Always set both:
+ *     parent.getChildren().add(child)
+ *     child.setParent(parent)
+ *
+ * This ensures:
+ * - FK is populated correctly
+ * - No orphan records
+ * - DB constraints are satisfied
+ */

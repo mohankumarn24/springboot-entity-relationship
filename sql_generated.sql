@@ -15,11 +15,21 @@ Only foreign keys + joins.
 		FROM student s
 		INNER JOIN address a ON s.address_id = a.id;
 		
+		Entity:
+		@OneToOne(fetch = FetchType.LAZY, optional = false)		// JPA knows Address is mandatory
+		@JoinColumn(name = "address_id", nullable = false)		// DB enforces NOT NULL
+		private Address address;
+		
 	b. Student even if Address missing
 		SELECT s.id, s.name, a.city
 		FROM student s
 		LEFT JOIN address a ON s.address_id = a.id;
 		
+		Entity:
+		@OneToOne(fetch = FetchType.LAZY)						// optional = true is default
+		@JoinColumn(name = "address_id")						// nullable = true
+		
+
 2. ONE-TO-MANY
    -----------
 	(Student → Phone)
@@ -28,12 +38,21 @@ Only foreign keys + joins.
 		SELECT s.id, s.name, p.number
 		FROM student s
 		INNER JOIN phone p ON s.id = p.student_id;
+		    
+		@ManyToOne(fetch = FetchType.LAZY, optional = false)
+		@JoinColumn(name = "student_id", nullable = false)
+		private Student student;
 	
 	b. All Students (even without phones)
 		SELECT s.id, s.name, p.number
 		FROM student s
 		LEFT JOIN phone p ON s.id = p.student_id;
-
+		 	
+		@ManyToOne(fetch = FetchType.LAZY)
+		@JoinColumn(name = "student_id")
+		private Student student;
+			
+	
 3. MANY-TO-ONE
    -----------
 	(Phone → Student)
@@ -49,6 +68,7 @@ Only foreign keys + joins.
 		SELECT p.id, p.number, s.name
 		FROM phone p
 		LEFT JOIN student s ON p.student_id = s.id;
+
 
 4. MANY-TO-MANY
    ------------

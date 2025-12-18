@@ -24,9 +24,9 @@ public class Phone {
     private String phoneModel;
     private String phoneNumber;
 
-    @JsonIgnore									// @JsonIgnore is added for JSON serialization safety
+    @JsonIgnore											// @JsonIgnore is added for JSON serialization safety
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "student_id")
+    @JoinColumn(name = "student_id", nullable = false)	// Make FK non-null explicitly (optional but clearer)
     private Student student;
 
     @Version
