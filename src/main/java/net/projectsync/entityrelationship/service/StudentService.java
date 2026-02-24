@@ -406,3 +406,147 @@ public class StudentService {
         }
     }
 }
+
+
+/*
+MappingDefault 	Fetch
+----------------------
+@OneToMany		LAZY
+@ManyToMany		LAZY
+@ManyToOne		EAGER
+@OneToOne		EAGER
+----------------------
+
+
+Why readOnly = true?
+	- When readOnly = true, Hibernate:
+ 		-- Skips dirty checking — doesn't snapshot entities to detect changes
+		-- Doesn't flush to DB unless explicitly needed
+		-- Potentially routes to read replica (if configured)
+		-- Overall faster and lighter for reads
+	- It's a performance optimization, not a security lock.
+
+
+// Recommended best practice
+@Service
+@Transactional(readOnly = true)   // class-level default
+public class OrderService {
+
+    private final OrderRepository orderRepository;
+
+    // READ — inherits readOnly=true
+    public Order getOrder(Long id) {
+        return orderRepository.findById(id).orElseThrow();
+    }
+
+    // WRITE — override with readOnly=false (default @Transactional)
+    @Transactional
+    public Order createOrder(Order order) {
+        return orderRepository.save(order);
+    }
+
+    @Transactional
+    public void deleteOrder(Long id) {
+        orderRepository.deleteById(id);
+    }
+}
+
+
+// If any exception occurs, the whole operation rolls back.
+@Transactional
+public void transferMoney(Account from, Account to, double amount) {
+    from.debit(amount);
+    to.credit(amount);
+}
+
+
+Key Properties:
+--------------
+ - propagation		: how transactions interact (e.g., REQUIRED, REQUIRES_NEW, NESTED)
+ - isolation		: concurrency control (READ_COMMITTED, SERIALIZABLE, etc.)
+ - rollbackFor		: which exceptions trigger rollback (default: unchecked only)
+ - readOnly=true	: optimization hint for read-only operations
+ - timeout			: max seconds before forced rollback
+
+*/
+
+
+
+
+
+
+/*
+//=============================================================
+//JPA ENTITY RELATIONSHIPS - FETCH TYPES (LAZY vs EAGER)
+//=============================================================
+
+//--- DEFAULT FETCH TYPES ---
+//@OneToMany  → LAZY  (collection)
+//@ManyToMany → LAZY  (collection)
+//@ManyToOne  → EAGER (single entity) ⚠️ often overlooked
+//@OneToOne   → EAGER (single entity) ⚠️ often overlooked
+
+
+//--- LAZY LOADING ---
+//Data is NOT fetched from DB until you explicitly access it.
+//Works only within an open Hibernate session (persistence context).
+//Accessing lazy field after session closes throws:
+//→ LazyInitializationException: could not initialize proxy - no Session
+
+//Example:
+//@OneToMany(mappedBy = "user", fetch = FetchType.LAZY)  // default, no need to specify
+//private List<Order> orders;
+
+
+//--- EAGER LOADING ---
+//Data is fetched IMMEDIATELY along with the parent entity (always).
+//Even if you don't need the association, it gets loaded.
+//Can cause performance issues on collections → N+1 problem.
+
+//Example:
+//@OneToMany(mappedBy = "user", fetch = FetchType.EAGER)  // ⚠️ avoid on collections
+//private List<Order> orders;
+
+
+//--- N+1 PROBLEM (caused by EAGER or naive LAZY access in a loop) ---
+//1 query to fetch all Users
+//+ N queries to fetch orders for each User
+//= N+1 total queries → kills performance at scale
+
+
+//--- HOW TO HANDLE LAZY LOADING SAFELY ---
+
+//Option 1: Force initialize within an open transaction
+//@Transactional(readOnly = true)
+//public User getUserWithOrders(Long id) {
+//  User user = userRepository.findById(id).orElseThrow();
+//  user.getOrders().size(); // triggers lazy load while session is open
+//  return user;
+//}
+
+//Option 2: JOIN FETCH in JPQL (fetches in single query)
+//@Query("SELECT u FROM User u JOIN FETCH u.orders WHERE u.id = :id")
+//Optional<User> findByIdWithOrders(@Param("id") Long id);
+
+//Option 3: @EntityGraph (cleanest, no JPQL needed)
+//@EntityGraph(attributePaths = {"orders", "address"})
+//Optional<User> findById(Long id);
+
+//Option 4: Projections / DTOs (best performance — fetch only what you need)
+//public interface UserSummary {
+//  String getName();
+//  String getEmail();
+//}
+//List<UserSummary> findAllProjectedBy();
+
+
+//--- BEST PRACTICES ---
+//✅ Keep default LAZY on @OneToMany and @ManyToMany
+//✅ Use @EntityGraph or JOIN FETCH when you need associations
+//✅ Use DTOs/Projections to avoid loading full entities unnecessarily
+//✅ Always access lazy fields inside a @Transactional method
+//❌ Never use EAGER on collections (@OneToMany, @ManyToMany)
+//❌ Never access lazy fields outside a transaction / open session
+
+//=============================================================
+*/
