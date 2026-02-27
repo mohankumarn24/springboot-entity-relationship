@@ -135,6 +135,29 @@ public class OrderService {
     // PROPAGATION — how transactions behave when methods call each other
     // =========================================================
 
+	 // =============================================================
+	 // QUICK REFERENCE
+	 // =============================================================
+	
+	 // PROPERTY         | DEFAULT          | USE FOR
+	 // -----------------|------------------|---------------------------
+	 // readOnly         | false            | performance on reads
+	 // rollbackFor      | RuntimeException | what triggers rollback
+	 // noRollbackFor    | (none)           | what skips rollback
+	 // propagation      | REQUIRED         | how txns interact
+	 // isolation        | DEFAULT (DB)     | concurrency / concurrent reads
+	 // timeout          | -1 (none)        | prevent long-running txns
+	
+	 // PROPAGATION      | BEHAVIOR
+	 // -----------------|-------------------------------------------
+	 // REQUIRED         | join existing txn OR create new txn (default)
+	 // REQUIRES_NEW     | always new txn, suspend existing txn(audit logs)
+	 // NESTED           | savepoint inside existing txn (partial rollback)
+	 // SUPPORTS         | use existing txn if present, else run non-transactional
+	 // MANDATORY        | must have existing txn, else throws
+	 // NEVER            | must NOT have txn, else throws
+	 // NOT_SUPPORTED    | suspend existing txn, run without txn
+    
     @Transactional(propagation = Propagation.REQUIRED)
     // DEFAULT propagation
     // → If a transaction already exists: JOIN it (share same transaction)
@@ -421,28 +444,30 @@ public class OrderService {
 // QUICK REFERENCE
 // =============================================================
 
-// PROPERTY       | DEFAULT          | USE FOR
-// ---------------|------------------|---------------------------
-// propagation    | REQUIRED         | how txns interact
-// isolation      | DEFAULT (DB)     | concurrency / concurrent reads
-// rollbackFor    | RuntimeException | what triggers rollback
-// noRollbackFor  | (none)           | what skips rollback
-// readOnly       | false            | performance on reads
-// timeout        | -1 (none)        | prevent long-running txns
+// PROPERTY         | DEFAULT          | USE FOR
+// -----------------|------------------|---------------------------
+// readOnly         | false            | performance on reads
+// rollbackFor      | RuntimeException | what triggers rollback
+// noRollbackFor    | (none)           | what skips rollback
+// propagation      | REQUIRED         | how txns interact
+// isolation        | DEFAULT (DB)     | concurrency / concurrent reads
+// timeout          | -1 (none)        | prevent long-running txns
 
-// PROPAGATION    | BEHAVIOR
-// ---------------|-------------------------------------------
-// REQUIRED       | join existing OR create new (default)
-// REQUIRES_NEW   | always new, suspend existing (audit logs)
-// NESTED         | savepoint inside existing (partial rollback)
-// SUPPORTS       | use existing if present, else no txn
-// MANDATORY      | must have existing txn, else throws
-// NEVER          | must NOT have txn, else throws
-// NOT_SUPPORTED  | suspend existing, run without txn
+// PROPAGATION      | BEHAVIOR
+// -----------------|-------------------------------------------
+// REQUIRED         | join existing txn OR create new txn (default)
+// REQUIRES_NEW     | always new txn, suspend existing txn(audit logs)
+// NESTED           | savepoint inside existing txn (partial rollback)
+// SUPPORTS         | use existing txn if present, else run non-transactional
+// MANDATORY        | must have existing txn, else throws
+// NEVER            | must NOT have txn, else throws
+// NOT_SUPPORTED    | suspend existing txn, run without txn
 
-// ISOLATION      | PREVENTS
-// ---------------|-------------------------------------------
+// ISOLATION        | PREVENTS
+// -----------------|-------------------------------------------
 // READ_UNCOMMITTED | nothing (fastest, unsafe)
 // READ_COMMITTED   | Dirty Read
 // REPEATABLE_READ  | Dirty Read + Non-Repeatable Read
 // SERIALIZABLE     | all 3 problems (slowest)
+
+
