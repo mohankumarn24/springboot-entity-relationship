@@ -88,7 +88,7 @@ public class OrderService {
     // =========================================================
     // ROLLBACK — what triggers a rollback?
     // =========================================================
-
+    
     @Transactional
     // DEFAULT: only RuntimeException (unchecked) triggers rollback
     // Checked exceptions (like IOException) do NOT rollback by default
@@ -158,6 +158,55 @@ public class OrderService {
 	 // NEVER            | must NOT have txn, else throws
 	 // NOT_SUPPORTED    | suspend existing txn, run without txn
     
+
+    /*
+    @Service
+    public class ServiceA {
+        @Autowired private ServiceB serviceB;
+
+        @Transactional(propagation = Propagation.REQUIRED)
+        public void methodA() {
+            insertIntoTable("A");
+            serviceB.methodB();
+        }
+    }
+
+    @Service
+    public class ServiceB {
+        @Transactional(propagation = Propagation.REQUIRES_NEW)
+        public void methodB() {
+            insertIntoTable("B");
+            throw new RuntimeException("Fail B");
+        }
+    }
+    
++------------------+--------------------------------------------------+--------------------------------------------------------------+----------------+-------------------------------------------------------------+
+| Propagation Type | Behavior                                         | Example Scenario                                             | DB Before      | DB After                                                    |
++------------------+--------------------------------------------------+--------------------------------------------------------------+----------------+-------------------------------------------------------------+
+| REQUIRED         | Joins existing transaction, or starts a new one  | ServiceA.methodA() calls ServiceB.methodB(). Both run in     | Table empty    | If methodB() fails → rollback everything. If success → both |
+| (default)        | if none exists.                                  | the same transaction.                                        |                | inserts committed.                                          |
++------------------+--------------------------------------------------+--------------------------------------------------------------+----------------+-------------------------------------------------------------+
+| REQUIRES_NEW     | Suspends current transaction, starts a new one.  | methodA() inserts record, then calls methodB() with          | Table empty    | If methodB() fails → only its transaction rolls back,       |
+|                  |                                                  | REQUIRES_NEW.                                                |                | methodA() insert still committed.                           |
++------------------+--------------------------------------------------+--------------------------------------------------------------+----------------+-------------------------------------------------------------+
+| SUPPORTS         | Runs in a transaction if one exists, otherwise   | methodA() has transaction, calls methodB() with SUPPORTS.    | Table empty    | If methodA() rolls back → methodB() changes also rolled     |
+|                  | executes non-transactionally.                    |                                                              |                | back. If no transaction → methodB() commits immediately.    |
++------------------+--------------------------------------------------+--------------------------------------------------------------+----------------+-------------------------------------------------------------+
+| MANDATORY        | Must run inside a transaction, else throws       | Call methodB() with MANDATORY from non-transactional         | Table empty    | Exception thrown, no DB changes.                            |
+|                  | exception.                                       | methodA().                                                   |                |                                                             |
++------------------+--------------------------------------------------+--------------------------------------------------------------+----------------+-------------------------------------------------------------+
+| NOT_SUPPORTED    | Suspends current transaction, runs               | methodA() starts transaction, calls methodB() with           | Table empty    | methodB() changes committed immediately, even if methodA()  |
+|                  | non-transactionally.                             | NOT_SUPPORTED.                                               |                | rolls back later.                                           |
++------------------+--------------------------------------------------+--------------------------------------------------------------+----------------+-------------------------------------------------------------+
+| NEVER            | Must not run inside a transaction, else throws   | Call methodB() with NEVER from transactional methodA().      | Table empty    | Exception thrown, no DB changes.                            |
+|                  | exception.                                       |                                                              |                |                                                             |
++------------------+--------------------------------------------------+--------------------------------------------------------------+----------------+-------------------------------------------------------------+
+| NESTED           | Runs within a nested transaction (savepoint).    | methodA() inserts record, calls methodB() with NESTED.       | Table empty    | If methodB() fails → only its changes rolled back,          |
+|                  | Rollback affects only nested part unless parent  |                                                              |                | methodA() insert still committed. If methodA() fails →      |
+|                  | rolls back.                                      |                                                              |                | everything rolled back.                                     |
++------------------+--------------------------------------------------+--------------------------------------------------------------+----------------+-------------------------------------------------------------+
+	*/
+    
     @Transactional(propagation = Propagation.REQUIRED)
     // DEFAULT propagation
     // → If a transaction already exists: JOIN it (share same transaction)
@@ -184,6 +233,7 @@ public class OrderService {
     // → If this method fails → rollback to savepoint (caller can continue)
     // → If caller fails → everything rolls back including this
     // Requires JDBC savepoint support (PostgreSQL, MySQL support it)
+    // Reuses same transaction. No new transaction created
     public void chargePayment(Order order) {
         paymentRepository.charge(order);
         // If this fails → rollback to savepoint, placeOrder() can handle it
@@ -202,6 +252,7 @@ public class OrderService {
     // → MUST be called within an existing transaction
     // → Throws IllegalTransactionStateException if no transaction exists
     // USE CASE: enforce that this method is never called standalone
+    // Both caller and called method will use same transaction if present
     public void validateAndSave(Order order) {
         // Caller MUST have started a transaction before calling this
         orderRepository.save(order);
@@ -228,15 +279,27 @@ public class OrderService {
     // ISOLATION — controls how concurrent transactions see each other
     // =========================================================
 
+    /*
+	 * The Three Problems Isolation Levels Solve:
+	 * Dirty Read 			→ Transaction A reads data that Transaction B has written but not yet committed. If B rolls back, A has read “ghost” data.
+	 * Non-Repeatable Read 	→ Transaction A reads the same row twice but gets different values because Transaction B updated it in between.
+	 * Phantom Read 		→ Transaction A runs the same query twice but gets different sets of rows because Transaction B inserted/deleted rows in between.
+     */
+    
     // Problems isolation deals with:
     // Dirty Read          → reading UNCOMMITTED data from another transaction
     // Non-Repeatable Read → same row gives DIFFERENT values in same transaction
     // Phantom Read        → same query returns DIFFERENT rows in same transaction
 
+    
     @Transactional(isolation = Isolation.READ_UNCOMMITTED)
     // Can read uncommitted changes from other transactions
     // Allows: Dirty Read, Non-Repeatable Read, Phantom Read
     // Fastest but LEAST safe — rarely used in production
+    // Use Case: 
+    // 	Scenario: Transaction B updates an order but hasn’t committed yet. Transaction A reads it anyway.
+    // 	Result: If B rolls back, A has read invalid data.
+    // 	Use: Almost never in production.
     public Order getDirtyOrder(Long id) {
         return orderRepository.findById(id).orElseThrow();
     }
@@ -246,6 +309,10 @@ public class OrderService {
     // Prevents: Dirty Read
     // Allows: Non-Repeatable Read, Phantom Read
     // DEFAULT in PostgreSQL — good balance for most apps
+    // Use Case: 
+    // 	Scenario: Transaction A can only read data that Transaction B has committed.
+    // 	Result: No dirty reads. But if B updates the same row later, A may see different values (non-repeatable read).
+    // 	Use: Default in many databases; safe for most apps.
     public Order getCommittedOrder(Long id) {
         return orderRepository.findById(id).orElseThrow();
     }
@@ -255,6 +322,10 @@ public class OrderService {
     // Prevents: Dirty Read, Non-Repeatable Read
     // Allows: Phantom Read
     // DEFAULT in MySQL InnoDB
+    // Use Case: 
+    // 	Scenario: Transaction A reads a row. Even if Transaction B updates it later, A will always see the same value during its transaction.
+    // 	Result: Prevents dirty and non-repeatable reads. But if B inserts new rows, A’s queries may see “phantoms.”
+    // 	Use: Ensures consistency of row values; common in MySQL.
     public Order getStableOrder(Long id) {
         return orderRepository.findById(id).orElseThrow();
     }
@@ -263,6 +334,11 @@ public class OrderService {
     // Transactions run as if SEQUENTIAL (one after another)
     // Prevents: ALL three problems
     // SLOWEST — heavy locking — use only for critical financial operations
+    // Use Case: 
+    // 	Scenario: Transactions run as if one after another (sequential).
+    // 	Result: Prevents dirty reads, non-repeatable reads, and phantom reads.
+    //  Trade-off: Slowest, heavy locking, reduced concurrency.
+    // 	Use: Banking, financial apps, critical consistency.
     public void processFinancialTransaction(Order order) {
         orderRepository.save(order);
     }
